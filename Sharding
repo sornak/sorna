@@ -1,0 +1,88 @@
+const { MongoClient } = require("mongodb");
+const crypto = require("crypto");
+
+// Shard configuration
+const shardConfig = {
+  shard0: { url: "mongodb://localhost:27017", databaseName: "shard0" },
+  shard1: { url: "mongodb://localhost:27018", databaseName: "shard1" },
+  shard2: { url: "mongodb://localhost:27019", databaseName: "shard2" },
+};
+
+// Connection pools for each shard
+const shardConnections = {};
+
+// Connect to all shards
+async function connectToShards() {
+  console.log("Connecting to shards...");
+  for (const [shardId, config] of Object.entries(shardConfig)) {
+    const client = new MongoClient(config.url, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      poolSize: 10, // Set connection pool size
+    });
+    await client.connect();
+    shardConnections[shardId] = client.db(config.databaseName);
+    console.log(`Connected to ${shardId}`);
+  }
+}
+
+// Hashing function for consistent hashing
+function getShardIndex(shardKey) {
+  const hash = crypto.createHash("sha256").update(shardKey.toString()).digest("hex");
+  const numericHash = parseInt(hash.slice(0, 8), 16); // Use first 8 hex chars for numeric value
+  return numericHash % Object.keys(shardConnections).length;
+}
+
+// Get the shard connection for a given shard key
+function getShardConnection(shardKey) {
+  const shardIndex = getShardIndex(shardKey);
+  const shardId = `shard${shardIndex}`;
+  return shardConnections[shardId];
+}
+
+// Insert data into the appropriate shard
+async function insertData(collectionName, data) {
+  const shardKey = data.user_id; // Use `user_id` as the shard key
+  const shardConnection = getShardConnection(shardKey);
+  const collection = shardConnection.collection(collectionName);
+  await collection.insertOne(data);
+  console.log(`Inserted data into shard for user_id: ${shardKey}`);
+}
+
+// Fetch data from the appropriate shard
+async function fetchData(collectionName, shardKey) {
+  const shardConnection = getShardConnection(shardKey);
+  const collection = shardConnection.collection(collectionName);
+  const result = await collection.findOne({ user_id: shardKey });
+  return result;
+}
+
+// Main Execution
+(async () => {
+  try {
+    await connectToShards();
+
+    // Example usage
+    const collectionName = "users";
+
+    // Insert data
+    await insertData(collectionName, { user_id: "12345", name: "Alice", age: 25 });
+    await insertData(collectionName, { user_id: "67890", name: "Bob", age: 30 });
+
+    // Fetch data
+    const user1 = await fetchData(collectionName, "12345");
+    console.log("Fetched User:", user1);
+
+    const user2 = await fetchData(collectionName, "67890");
+    console.log("Fetched User:", user2);
+
+  } catch (error) {
+    console.error("Error:", error);
+  } finally {
+    // Close connections
+    for (const client of Object.values(shardConnections)) {
+      await client.client?.close();
+    }
+    console.log("Closed all connections.");
+  }
+})();
