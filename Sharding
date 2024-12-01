@@ -66,8 +66,8 @@ async function fetchData(collectionName, shardKey) {
     const collectionName = "users";
 
     // Insert data
-    await insertData(collectionName, { user_id: "12345", name: "Alice", age: 25 });
-    await insertData(collectionName, { user_id: "67890", name: "Bob", age: 30 });
+    await insertData(collectionName, { user_id: "12345", name: "Sorna", age: 25 });
+    await insertData(collectionName, { user_id: "67890", name: "Charu", age: 30 });
 
     // Fetch data
     const user1 = await fetchData(collectionName, "12345");
