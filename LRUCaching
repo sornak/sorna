@@ -5,36 +5,60 @@ const redisClient = createClient();
 redisClient.on('connect', () => {
   console.log('Connected to Redis');
 });
+
 redisClient.on('error', (err) => {
   console.error('Redis error:', err);
 });
 
-const setCache = async (key, value, ttlInSeconds) => {
-  try {
-    await redisClient.setEx(key, ttlInSeconds, JSON.stringify(value));
-    console.log(`Key "${key}" cached with TTL of ${ttlInSeconds} seconds`);
-  } catch (err) {
-    console.error('Error setting cache:', err);
-  }
-};
-
-const getCache = async (key) => {
-  try {
-    const cachedData = await redisClient.get(key);
-    return cachedData ? JSON.parse(cachedData) : null;
-  } catch (err) {
-    console.error('Error getting cache:', err);
-    return null;
-  }
-};
-
 (async () => {
   await redisClient.connect();
 
-  await setCache('user1', { name: 'Sam', age: 40 }, 300);
+// storing multiple keys
+  await redisClient.setEx('key1', 60, 'value1'); // Key1
+  await redisClient.setEx('key2', 60, 'value2'); // Key2
+  await redisClient.setEx('key3', 60, 'value3'); // Key3
+  console.log('Keys Added: key1, key2, key3');
 
-  const cachedUser = await getCache('user1');
-  console.log('Cached User:', cachedUser);
+  // Access key2 to make it "recently used"
+  await redisClient.get('key2');
+  console.log('Accessed key2');
+
+  // Add a new key to exceed max memory
+  await redisClient.setEx('key4', 60, 'value4');
+  console.log('Added key4');
+
+  // Check which keys remain
+  const keys = await redisClient.keys('*');
+  console.log('Remaining Keys:', keys);
 
   await redisClient.quit();
 })();
+
+
+/* Explanation */
+
+Example Scenario
+
+Initial State
+
+Maximum Memory Set - 100MB.
+
+Redis is configured with maxmemory-policy allkeys-lru
+
+Key1 (Last Accessed: 12:00 AM)
+Key2 (Last Accessed: 12:05 AM)
+Key3 (Last Accessed: 12:10 AM)
+
+New Key is Added 
+
+At 12:15 AM, adding new Key4.
+
+The cache size exceeds the 100MB limit.
+
+Redis checks for the least recently used key (in this case, Key1 accessed at 12:00 AM) and evicts it
+
+Current Cache status :
+
+Key2 (Last Accessed: 12:05 AM)
+Key3 (Last Accessed: 12:10 AM)
+Key4 (Last Accessed: 12:15 AM)
