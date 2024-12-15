@@ -1,9 +1,7 @@
 import { createClient } from 'redis';
 
-// Create a Redis client
 const redisClient = createClient();
 
-// Handle Redis connection
 redisClient.on('connect', () => {
   console.log('Connected to Redis');
 });
@@ -11,7 +9,6 @@ redisClient.on('error', (err) => {
   console.error('Redis error:', err);
 });
 
-// Function to set a cache value
 const setCache = async (key, value, ttlInSeconds) => {
   try {
     await redisClient.setEx(key, ttlInSeconds, JSON.stringify(value));
@@ -21,7 +18,6 @@ const setCache = async (key, value, ttlInSeconds) => {
   }
 };
 
-// Function to get a cached value
 const getCache = async (key) => {
   try {
     const cachedData = await redisClient.get(key);
@@ -32,9 +28,7 @@ const getCache = async (key) => {
   }
 };
 
-// Example usage
 (async () => {
-  // Connect to Redis
   await redisClient.connect();
 
   await setCache('user1', { name: 'Sam', age: 40 }, 300);
